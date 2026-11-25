@@ -1,100 +1,108 @@
 #!/usr/bin/env bash
 
-script_version=8.0.0
+SCRIPT_VERSION=9.0.0
 
-script_name=$(basename ${BASH_SOURCE[0]})
-script_dir=$(dirname ${BASH_SOURCE[0]})
-script_path=${BASH_SOURCE[0]}
+SCRIPT_NAME=$(basename ${BASH_SOURCE[0]})
+SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
+SCRIPT_PATH=${BASH_SOURCE[0]}
 
 function echo_usage()
-{ 
-	echo "${script_name} - Version ${script_version}"
+{
+	echo "${SCRIPT_NAME} - Version ${SCRIPT_VERSION}"
 	echo ""
-	echo "This script will clone a Git repository and set autocrlf and filemode to false."
+	echo "Install the bash-environment framework."
 	echo ""
-	echo "Usage: ${script_name}: [options]"
+	echo "Usage: ${SCRIPT_NAME} [options]"
 	echo ""
-	echo "  -h, --help                     Output this help information."
-	echo "      --pip-requires-virtualenv  Include PIP_REQUIRE_VIRTUALENV variable."
-	echo "                                 Implies --python3-virtualenv."
-	echo "      --pipenv-venv-in-project   Include PIPENV_VENV_IN_PROJECT variable."
-	echo "                                 Implies --python3-virtualenv."
-	echo "      --prompt                   Include prompt variable."
-	echo "      --python3-virtualenv       Include Python3 virtualenv variables."
-	echo "  -v, --verbose                  Verbose output."
-	echo "      --version                  Output the version."
-} 
+	echo "Options:"
+	echo "      --help     Output this help information."
+	echo "  -v, --version  Output the version."
+}
 
 # ANSI color escape sequences for use in echo_color().
-black='\e[30m'
-red='\e[31m'
-green='\e[32m'
-yellow='\e[33m'
-blue='\e[34m'
-magenta='\e[35m'
-cyan='\e[36m'
-white='\e[37m'
-reset='\e[0m'
+BLACK='\e[30m'
+RED='\e[31m'
+GREEN='\e[32m'
+YELLOW='\e[33m'
+BLUE='\e[34m'
+MAGENTA='\e[35m'
+CYAN='\e[36m'
+WHITE='\e[37m'
+RESET='\e[0m'
 
-# Echo color messages.
+# Echo a color message.
 # Echoing ANSI escape codes for color works, yet tput does not.
 # This may be caused by tput not being able to determine the terminal type.
 # Usage: echo_color color message
 function echo_color()
 {
-	color=${1}
-	message=${2}
-	echo -e "${color}${message}${reset}"
+	local color=${1}
+	local message=${2}
+	echo -e "${color}${message}${RESET}"
 }
 
-# Command-line switch variables.
-pip_requires_virtualenv=no
-pipenv_venv_in_project=no
-prompt=no
-python3_virtualenv=no
-verbose=no
+# Echo an informational message.
+# Usage: echo_info message
+function echo_info()
+{
+	local message=${1}
+	echo_color ${CYAN} "${message}"
+}
 
-# NOTE: This requires GNU getopt. On Mac OS X and FreeBSD, you have to install this separately.
-getopt_long_args="help,pip-requires-virtualenv,pipenv-venv-in-project,prompt,python3-virtualenv,verbose,version"
-ARGS=$(getopt -o hv -l ${getopt_long_args} -n ${script_name} -- "${@}")
-if [ ${?} != 0 ]; then
+# Echo an error message.
+# Usage: echo_error message
+function echo_error()
+{
+	local message=${1}
+	echo_color ${RED} "${SCRIPT_NAME}: Error: ${message}"
+}
+
+# Echo an error message and exit.
+# Usage: echo_error_and_exit message
+function echo_error_and_exit()
+{
+	local message=${1}
+	echo_error "${message}"
 	exit 1
+}
+
+# Copy a file without inheriting the source file mode.
+# Set the destination file mode after copying.
+# Usage: copy_and_mode mode src_file dst_file
+function copy_and_mode()
+{
+	local mode=${1}
+	local src=${2}
+	local dst=${3}
+	echo_info "Copying ${src} to ${dst} ..."
+	cp --no-preserve=mode ${src} ${dst}
+	echo_info "Setting mode for ${dst} to ${mode} ..."
+	chmod ${mode} ${dst}
+}
+
+# Parse the options using GNU getopt.
+# On Mac OS X and FreeBSD, you have to install GNU getopt separately.
+GETOPT_SHORT_OPTIONS="v"
+GETOPT_LONG_OPTIONS="help,version"
+PARSED_ARGS=$(getopt -o ${GETOPT_SHORT_OPTIONS} -l ${GETOPT_LONG_OPTIONS} -n ${SCRIPT_NAME} -- "${@}")
+return_code=${?}
+if [ ${return_code} -ne 0 ]; then
+	echo_error_and_exit "getopt returned ${return_code}" >&2
 fi
 
-# The quotes around "${ARGS}" are necessary.
-eval set -- "${ARGS}"
+# Re-index positional arguments to match parsed structure.
+# The quotes around "${PARSED_ARGS}" are necessary.
+eval set -- "${PARSED_ARGS}"
 
 # Parse the command line arguments.
 while true; do
 	case "${1}" in
-		-h | --help)
+		--help)
 			echo_usage
 			exit 0
 			;;
-		--pip-requires-virtualenv)
-			pip_requires_virtualenv=yes
-			python3_virtualenv=yes
-			shift
-			;;
-		--pipenv-venv-in-project)
-			pipenv_venv_in_project=yes
-			python3_virtualenv=yes
-			shift
-			;;
-		--prompt)
-			prompt=yes
-			shift
-			;;
-		--python3-virtualenv)
-			python3_virtualenv=yes
-			shift
-			;;
-		-v | --verbose)
-			verbose=yes
-			shift
-			;;
-		--version)
-			echo "${script_version}"
+		-v | --version)
+			echo "${SCRIPT_VERSION}"
 			exit 0
 			;;
 		--)
@@ -104,65 +112,44 @@ while true; do
 	esac
 done
 if [ ${#} -gt 0 ]; then
-	echo "${script_name}: Error: Invalid argument: ${1}" >&2
-	echo_usage
+	while [ ${#} -gt 0 ]; do
+		echo_error "Invalid argument -- '${1}'" >&2
+		shift
+	done
 	exit 1
 fi
 
-# Copy a file without inheriting the mode.
-# Usage: echo_color verbose src_file dst_file
-function copy()
-{
-	verbose=${1}
-	src=${2}
-	dst=${3}
-	[ ${verbose} == yes ] && echo "Installing ${dst} ..."
-	cp --no-preserve=mode "${src}" "${dst}"
-}
-
-# Change to the directory of this script.
-cd ${script_dir}
-
-# Install or update ~/bin.
-if [ ! -d ~/bin ]; then
-	[ ${verbose} == yes ] && echo "Creating ~/bin ..."
-	mkdir -p ~/bin
+# Install or update ${HOME}/bin.
+if [ ! -d ${HOME}/bin ]; then
+	echo_info "Creating ${HOME}/bin ..."
+	mkdir -p ${HOME}/bin
 fi
-copy ${verbose} bin/create-gitconfig.sh ~/bin/create-gitconfig.sh
-copy ${verbose} bin/create-hgrc.sh ~/bin/create-hgrc.sh
-copy ${verbose} bin/create-ssh-key.sh ~/bin/create-ssh-key.sh
-copy ${verbose} bin/git-clone.sh ~/bin/git-clone.sh
-copy ${verbose} bin/source-bashrc.d-scripts.sh ~/bin/source-bashrc.d-scripts.sh
-find ~/bin -type f -exec chmod u+x '{}' \;
+copy_and_mode u+x ${SCRIPT_DIR}/bin/create-gitconfig.sh ${HOME}/bin/create-gitconfig.sh
+copy_and_mode u+x ${SCRIPT_DIR}/bin/create-ssh-key.sh ${HOME}/bin/create-ssh-key.sh
+copy_and_mode u+x ${SCRIPT_DIR}/bin/git-clone.sh ${HOME}/bin/git-clone.sh
+copy_and_mode u+x ${SCRIPT_DIR}/bin/source-bashrc.d-scripts.sh ${HOME}/bin/source-bashrc.d-scripts.sh
 
 # Install or update ~/.bashrc.d.
-if [ ! -d ~/.bashrc.d ]; then
-	[ ${verbose} == yes ] && echo "Creating ~/.bashrc.d ..."
-	mkdir -p ~/.bashrc.d
+if [ ! -d ${HOME}/.bashrc.d ]; then
+	echo_info "Creating ${HOME}/.bashrc.d ..."
+	mkdir -p ${HOME}/.bashrc.d
 fi
-[ ! -z "$(uname -s | grep -i cygwin)" ] && copy ${verbose} .bashrc.d/cygwin-vagrant-helper.sh ~/.bashrc.d/cygwin-vagrant-helper.sh
-copy ${verbose} .bashrc.d/home-bin.sh ~/.bashrc.d/home-bin.sh
-copy ${verbose} .bashrc.d/misc-aliases.sh ~/.bashrc.d/misc-aliases.sh
-copy ${verbose} .bashrc.d/misc-vars.sh ~/.bashrc.d/misc-vars.sh
-# copy ${verbose} .bashrc.d/xdg-dirs-vars.sh ~/.bashrc.d/xdg-dirs-vars.sh
-[ ${prompt} == yes ] && copy ${verbose} .bashrc.d/prompt.sh ~/.bashrc.d/prompt.sh
-[ ${pip_requires_virtualenv} == yes ] && copy ${verbose} .bashrc.d/pip-require-virtualenv.sh ~/.bashrc.d/pip-require-virtualenv.sh
-[ ${pipenv_venv_in_project} == yes ] && copy ${verbose} .bashrc.d/pipenv-venv-in-project.sh ~/.bashrc.d/pipenv-venv-in-project.sh
-[ ${python3_virtualenv} == yes ] && copy ${verbose} .bashrc.d/python3-virtualenv.sh ~/.bashrc.d/python3-virtualenv.sh
-find ~/.bashrc.d -type f -name '*.sh' -exec chmod u+x '{}' \;
+copy_and_mode u+x ${SCRIPT_DIR}/.bashrc.d/home-bin.sh ${HOME}/.bashrc.d/home-bin.sh
+copy_and_mode u+x ${SCRIPT_DIR}/.bashrc.d/misc-aliases.sh ${HOME}/.bashrc.d/misc-aliases.sh
+copy_and_mode u+x ${SCRIPT_DIR}/.bashrc.d/misc-vars.sh ${HOME}/.bashrc.d/misc-vars.sh
 
 # Text lines that delimit the hook in ~/.bashrc.
-block_start='# bash-environment - Start of block'
-block_end='# bash-environment - End of block'
-block_warning='# Do not remove or modify any of the lines in this block.'
+BLOCK_START='# bash-environment - Start of block'
+BLOCK_END='# bash-environment - End of block'
+BLOCK_WARNING='# Do not remove or modify any of the lines in this block.'
 
 # Install or replace the hook in ~/.bashrc.
-sed -i "/^${block_start}/,/^${block_end}/d" ~/.bashrc
-echo "${block_start}" >> ~/.bashrc
-echo "${block_warning}" >> ~/.bashrc
-cat << 'EOF' >> ~/.bashrc
+sed -i "/^${BLOCK_START}/,/^${BLOCK_END}/d" ${HOME}/.bashrc
+echo "${BLOCK_START}" >> ${HOME}/.bashrc
+echo "${BLOCK_WARNING}" >> ${HOME}/.bashrc
+cat << 'EOF' >> ${HOME}/.bashrc
 source ${HOME}/bin/source-bashrc.d-scripts.sh
 EOF
-echo "${block_end}" >> ~/.bashrc
+echo "${BLOCK_END}" >> ${HOME}/.bashrc
 
 exit 0
