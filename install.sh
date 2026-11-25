@@ -12,7 +12,7 @@ function echo_usage()
 	echo ""
 	echo "Install the bash-environment framework."
 	echo ""
-	echo "Usage: ${SCRIPT_NAME}: [options]"
+	echo "Usage: ${SCRIPT_NAME} [options]"
 	echo ""
 	echo "Options:"
 	echo "      --help     Output this help information."
@@ -66,6 +66,20 @@ function echo_error_and_exit()
 	exit 1
 }
 
+# Copy a file without inheriting the source file mode.
+# Set the destination file mode after copying.
+# Usage: copy_and_mode mode src_file dst_file
+function copy_and_mode()
+{
+	local mode=${1}
+	local src=${2}
+	local dst=${3}
+	echo_info "Copying ${src} to ${dst} ..."
+	cp --no-preserve=mode ${src} ${dst}
+	echo_info "Setting mode for ${dst} to ${mode} ..."
+	chmod ${mode} ${dst}
+}
+
 # Parse the options using GNU getopt.
 # On Mac OS X and FreeBSD, you have to install GNU getopt separately.
 GETOPT_SHORT_OPTIONS="v"
@@ -104,20 +118,6 @@ if [ ${#} -gt 0 ]; then
 	done
 	exit 1
 fi
-
-# Copy a file without inheriting the source file mode.
-# Set the destination file mode after copying.
-# Usage: copy_and_mode mode src_file dst_file
-function copy_and_mode()
-{
-	local mode=${1}
-	local src=${2}
-	local dst=${3}
-	echo_info "Copying ${src} to ${dst} ..."
-	cp --no-preserve=mode ${src} ${dst}
-	echo_info "Setting mode for ${dst} to ${mode} ..."
-	chmod ${mode} ${dst}
-}
 
 # Install or update ${HOME}/bin.
 if [ ! -d ${HOME}/bin ]; then
