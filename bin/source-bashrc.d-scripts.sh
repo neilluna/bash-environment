@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
-script_version=1.0.0
+script_version=2.0.0
 
 script_name=$(basename ${BASH_SOURCE[0]})
 script_dir=$(dirname ${BASH_SOURCE[0]})
 script_path=${BASH_SOURCE[0]}
 
 function echo_usage()
-{ 
+{
 	echo "${script_name} - Version ${script_version}"
 	echo ""
-	echo "This script will source the scripts in the ~/.basrc.d directory."
+	echo "Source the scripts in the ~/.bashrc.d directory."
 	echo ""
 	echo "Usage: source ${script_name}"
 	echo ""
-	echo "  -h, --help     Output this help information."
-	echo "  -v, --verbose  Verbose output."
-	echo "      --version  Output the version."
-} 
+	echo "Options:"
+	echo "      --help     Output this help information."
+	echo "  -v, --version  Output the version."
+}
 
 # ANSI color escape sequences for use in echo_color().
 black='\e[30m'
@@ -41,30 +41,37 @@ function echo_color()
 	echo -e "${color}${message}${reset}"
 }
 
-# Command-line switch variables.
-verbose=no
+# Echo an error message.
+# Usage: echo_error message
+function echo_error()
+{
+	message=${1}
+	echo_color ${red} "${message}"
+}
 
-# NOTE: This requires GNU getopt. On Mac OS X and FreeBSD, you have to install this separately.
-ARGS=$(getopt -o hv -l help,verbose,version -n ${script_name} -- "${@}")
-if [ ${?} != 0 ]; then
+# Parse the options using GNU getopt.
+# On Mac OS X and FreeBSD, you have to install GNU getopt separately.
+short_options="v"
+long_options="help,version"
+parsed_args=$(getopt -o ${short_options} -l ${long_options} -n ${script_name} -- "${@}")
+return_code=${?}
+if [ ${return_code} != 0 ]; then
+	echo_error "${script_name}: Error: getopt returned ${return_code}" >&2
 	return 1
 fi
 
-# The quotes around "${ARGS}" are necessary.
-eval set -- "${ARGS}"
+# Re-index positional arguments to match parsed structure.
+# The quotes around "${parsed_args}" are necessary.
+eval set -- "${parsed_args}"
 
 # Parse the command line arguments.
 while true; do
 	case "${1}" in
-		-h | --help)
+		--help)
 			echo_usage
 			return 0
 			;;
-		-v | --verbose)
-			verbose=yes
-			shift
-			;;
-		--version)
+		-v | --version)
 			echo "${script_version}"
 			return 0
 			;;
@@ -75,12 +82,14 @@ while true; do
 	esac
 done
 if [ ${#} -gt 0 ]; then
-	echo "${script_name}: Error: Invalid argument: ${1}" >&2
-	echo_usage
+	while [ ${#} -gt 0 ]; do
+		echo_error "${script_name}: Error: Invalid argument -- '${1}'" >&2
+		shift
+	done
 	return 1
 fi
 
-for script in ${HOME}/.bashrc.d/*.sh; do
+for script in ~/.bashrc.d/*.sh; do
 	source ${script}
 done
 
